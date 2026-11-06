@@ -42,6 +42,7 @@ test('incomplete bounded scan fails closed', async () => {
 
 process.env.ALCHEMY_RPC_URL = 'http://127.0.0.1:9';
 process.env.DARK_ORACLE_ADDRESS = '0x0000000000000000000000000000000000000001';
+process.env.SAFETY_MARGIN = '0.8';
 const contracts = require('../dist/contracts');
 const slack = require('../dist/slack');
 const { checkStaleness } = require('../dist/monitor');
