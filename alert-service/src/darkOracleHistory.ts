@@ -6,6 +6,9 @@ type HistoryReader<T extends OracleLog> = {
   getLogs: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>;
 };
 
+// Bound the scan by time: a fixed number of chunks would assume a block cadence again.
+const SCAN_TIME_LIMIT_MS = 60_000;
+
 export async function findDarkOracleHistory<T extends OracleLog>(
   reader: HistoryReader<T>, thresholdMs: number, nowMs = Date.now(),
 ): Promise<{ logs: T[]; currentBlock: bigint; fromBlock: bigint; searchWindowMs: number; headTimestampMs: number }> {
@@ -20,7 +23,8 @@ export async function findDarkOracleHistory<T extends OracleLog>(
   const currentBlock = head.number;
   let toBlock = currentBlock;
   const logs: T[] = [];
-  for (let chunk = 0; chunk < 32; chunk += 1) {
+  const deadlineMs = Date.now() + SCAN_TIME_LIMIT_MS;
+  while (Date.now() <= deadlineMs) {
     // At most 500 inclusive blocks per request, including on public Base RPCs.
     const fromBlock = toBlock >= 499n ? toBlock - 499n : 0n;
     const batch = await reader.getLogs(fromBlock, toBlock);
@@ -35,5 +39,5 @@ export async function findDarkOracleHistory<T extends OracleLog>(
     toBlock = fromBlock - 1n;
   }
   // Incomplete history is a monitor error, not evidence of an oracle outage.
-  throw new Error('DarkOracle history scan limit reached before covering the freshness window');
+  throw new Error('DarkOracle history scan time limit reached before covering the freshness window');
 }

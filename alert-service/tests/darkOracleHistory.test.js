@@ -36,8 +36,19 @@ test('transport failure and stale RPC head are errors, not missing-event results
   await assert.rejects(findDarkOracleHistory(fixture({fail: true}).reader, 48000, NOW), /RPC unavailable/);
   await assert.rejects(findDarkOracleHistory(fixture({lag: 40000}).reader, 48000, NOW), /head/);
 });
-test('incomplete bounded scan fails closed', async () => {
-  await assert.rejects(findDarkOracleHistory(fixture({cadence: 1,eventAge: null}).reader, 48000, NOW), /scan limit/);
+test('scan that outlasts its time limit fails closed', async t => {
+  let clock = NOW;
+  t.mock.method(Date, 'now', () => clock);
+  const f = fixture({cadence: 1, eventAge: null});
+  const reader = { ...f.reader, getLogs: (from, to) => { clock += 20000; return f.reader.getLogs(from, to); } };
+  await assert.rejects(findDarkOracleHistory(reader, 48000, NOW), /time limit/);
+  assert.ok(f.calls.length <= 4);
+});
+test('block cadence does not cap how far a scan can reach', async () => {
+  const f = fixture({cadence: 1, eventAge: null});
+  const r = await findDarkOracleHistory(f.reader, 48000, NOW);
+  assert.equal(r.logs.length, 0);
+  assert.ok(f.calls.length > 32);
 });
 
 process.env.ALCHEMY_RPC_URL = 'http://127.0.0.1:9';
