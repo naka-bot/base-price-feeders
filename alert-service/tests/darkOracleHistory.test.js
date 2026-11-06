@@ -46,17 +46,33 @@ process.env.SAFETY_MARGIN = '0.8';
 const contracts = require('../dist/contracts');
 const slack = require('../dist/slack');
 const { checkStaleness } = require('../dist/monitor');
-for (const [label, eventAge, expectedAlert] of [['false positive',9327,false],['threshold boundary',48000,false],['genuinely stale',49000,true],['no updates',null,true]]) {
+async function runCheck(t, options) {
+  t.mock.method(Date, 'now', () => NOW);
+  const f = fixture(options);
+  const alerts = [];
+  t.mock.method(slack, 'sendSlackAlert', async message => { alerts.push(message); });
+  t.mock.method(contracts.publicClient, 'getBlock', ({blockNumber}) => f.reader.getBlock(blockNumber));
+  t.mock.method(contracts.publicClient, 'getLogs', ({fromBlock,toBlock}) => f.reader.getLogs(fromBlock,toBlock));
+  t.mock.method(contracts.publicClient, 'readContract', async () => 60000n);
+  await checkStaleness();
+  return alerts;
+}
+for (const [label, options, expectedAlert] of [
+  ['false positive',{eventAge:9327},false],
+  ['threshold boundary',{eventAge:48000},false],
+  ['genuinely stale',{eventAge:49000},true],
+  ['no updates',{eventAge:null},true],
+]) {
   test(`upstream freshness check: ${label}`, async t => {
-    t.mock.method(Date, 'now', () => NOW);
-    const f = fixture({eventAge});
-    const alerts = [];
-    t.mock.method(slack, 'sendSlackAlert', async message => { alerts.push(message); });
-    t.mock.method(contracts.publicClient, 'getBlock', ({blockNumber}) => f.reader.getBlock(blockNumber));
-    t.mock.method(contracts.publicClient, 'getLogs', ({fromBlock,toBlock}) => f.reader.getLogs(fromBlock,toBlock));
-    t.mock.method(contracts.publicClient, 'readContract', async () => 60000n);
-    await checkStaleness();
+    const alerts = await runCheck(t, options);
     assert.equal(alerts.length > 0, expectedAlert);
     if (expectedAlert) assert.match(alerts[0], /Staleness Alert/);
   });
 }
+test('SAFETY_MARGIN that is inexact in floating point still gives a threshold', async t => {
+  const { config } = require('../dist/config');
+  const margin = config.SAFETY_MARGIN;
+  config.SAFETY_MARGIN = 0.55;
+  t.after(() => { config.SAFETY_MARGIN = margin; });
+  assert.deepEqual(await runCheck(t, {eventAge: 9327}), []);
+});

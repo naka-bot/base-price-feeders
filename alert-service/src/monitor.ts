@@ -43,7 +43,7 @@ export async function checkStaleness() {
 
     const maxAgeMs = darkOracleMaxAgeMs;
 
-    const stalenessThresholdMs = (maxAgeMs * BigInt(config.SAFETY_MARGIN * 100)) / BigInt(100);
+    const stalenessThresholdMs = (maxAgeMs * BigInt(Math.round(config.SAFETY_MARGIN * 100))) / BigInt(100);
 
     const { logs, searchWindowMs } = await findDarkOracleHistory({
       getBlock: (blockNumber) => withTimeout(publicClient.getBlock({ blockNumber })),
