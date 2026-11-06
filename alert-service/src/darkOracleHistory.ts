@@ -25,7 +25,7 @@ export async function findDarkOracleHistory<T extends OracleLog>(
   const logs: T[] = [];
   const deadlineMs = Date.now() + SCAN_TIME_LIMIT_MS;
   while (Date.now() <= deadlineMs) {
-    // At most 500 inclusive blocks per request, including on public Base RPCs.
+    // At most 500 inclusive blocks per request; some RPC plans allow fewer (see .env.example).
     const fromBlock = toBlock >= 499n ? toBlock - 499n : 0n;
     const batch = await reader.getLogs(fromBlock, toBlock);
     logs.unshift(...batch);
