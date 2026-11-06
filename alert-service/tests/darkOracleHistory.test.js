@@ -62,6 +62,10 @@ for (const [label, options, expectedAlert] of [
   ['threshold boundary',{eventAge:48000},false],
   ['genuinely stale',{eventAge:49000},true],
   ['no updates',{eventAge:null},true],
+  // Head 25s behind: this update is 30s old at the head but 55s against the wall clock.
+  ['lagging head does not inflate age',{eventAge:55000,eventBlock:99850n,lag:25000},false],
+  // 49s old at that same head, so still stale.
+  ['lagging head still reports staleness',{eventAge:74000,eventBlock:99755n,lag:25000},true],
 ]) {
   test(`upstream freshness check: ${label}`, async t => {
     const alerts = await runCheck(t, options);

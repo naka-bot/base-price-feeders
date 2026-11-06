@@ -45,7 +45,7 @@ export async function checkStaleness() {
 
     const stalenessThresholdMs = (maxAgeMs * BigInt(Math.round(config.SAFETY_MARGIN * 100))) / BigInt(100);
 
-    const { logs, searchWindowMs } = await findDarkOracleHistory({
+    const { logs, searchWindowMs, headTimestampMs } = await findDarkOracleHistory({
       getBlock: (blockNumber) => withTimeout(publicClient.getBlock({ blockNumber })),
       getLogs: (fromBlock, toBlock) => withTimeout(publicClient.getLogs({
         address: config.DARK_ORACLE_ADDRESS,
@@ -77,8 +77,9 @@ export async function checkStaleness() {
       if (eventTimestampMs === 0) {
         await sendSlackAlert(`🚨 DarkOracle Staleness Alert: No valid timestamp found in the last ${logs.length} PricesUpdated events from DarkOracle (${config.DARK_ORACLE_ADDRESS}).`);
       } else {
-        const currentTimestampMs = Math.floor(Date.now());
-        const ageMs = (currentTimestampMs - eventTimestampMs);
+        // Measure against the scanned head, as the contract does with block.timestamp,
+        // so RPC lag and scan time cannot inflate the age.
+        const ageMs = headTimestampMs - eventTimestampMs;
 
         if (BigInt(ageMs) > stalenessThresholdMs) {
           await sendSlackAlert(
